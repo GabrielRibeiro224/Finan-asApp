@@ -16,20 +16,53 @@ public class TransacoesController : ControllerBase
     }
 
     // Método GET para as transacoes
-    [HttpGet]
-    public async Task<ActionResult<IEnumerable<Transacao>>> GetTransacoes()
+    [HttpGet("{email}")]
+    public async Task<ActionResult<IEnumerable<Transacao>>> GetTransacoes(string email)
     {
-        return await _context.Transacoes.ToListAsync();
+        return await _context.Transacoes
+        .Where(t => t.UsuarioEmail == email)
+        .ToListAsync();
 
     }
 
     [HttpPost]
-    public async Task<ActionResult<Transacao>> PostTransacao(Transacao transacao)
+    public async Task<ActionResult<Transacao>> PostTransacao([FromBody] Transacao transacao)
     {
-        _context.Transacoes.Add(transacao);
-        await _context.SaveChangesAsync();
+        try
+        {
+            transacao.Id = 0;
 
-        return CreatedAtAction(nameof(GetTransacoes), new { id = transacao.Id }, transacao);
+            _context.Transacoes.Add(transacao);
+            await _context.SaveChangesAsync();
+
+            return StatusCode(201, transacao);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Erro ao salvar: {ex.Message}");
+            return StatusCode(500, "Erro interno ao salvar transação");
+        }
+    }
+
+    [HttpDelete("limpar/{email}")]
+    public async Task<IActionResult> LimparTudo(string email)
+    {
+        try
+        {
+            var transacoesUsuario = _context.Transacoes.Where(t => t.UsuarioEmail == email);
+
+            if (transacoesUsuario.Any())
+            {
+                _context.Transacoes.RemoveRange(transacoesUsuario);
+                await _context.SaveChangesAsync();
+            }
+            return Ok(new { message = "Histórico limpo com sucesso!" });
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Erro ao limpar banco: {ex.Message}");
+            return StatusCode(500, "Erro interno ao limpar os dados");
+        }
     }
 
 }

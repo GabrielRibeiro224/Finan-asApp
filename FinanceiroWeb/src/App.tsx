@@ -4,6 +4,11 @@ import { useState, useEffect } from "react";
 
 import {
   Wallet,
+  Trash2,
+  TrendingUp,
+  TrendingDown,
+  Plus,
+  LogOut,
   ArrowUpCircle,
   ArrowDownCircle,
   PlusCircle,
@@ -12,25 +17,7 @@ import {
   PiggyBank,
   Settings,
 } from "lucide-react";
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  Tooltip,
-  ResponsiveContainer,
-  Cell,
-} from "recharts";
-
-// Dados fictícios para o gráfico
-const data = [
-  { name: "Seg", valor: 400 },
-  { name: "Ter", valor: 700 },
-  { name: "Qua", valor: 500 },
-  { name: "Qui", valor: 900 },
-  { name: "Sex", valor: 1200 },
-  { name: "Sáb", valor: 800 },
-  { name: "Dom", valor: 300 },
-];
+import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer } from "recharts";
 
 interface GoogleUser {
   name: string;
@@ -53,10 +40,16 @@ interface Transacao {
   usuarioEmail: string;
 }
 
+interface DadoGrafico {
+  name: string;
+  valor: number;
+}
+
 function App() {
   const [usuario, setUsuario] = useState<GoogleUser | null>(null);
   const [transacoes, setTransacoes] = useState<Transacao[]>([]);
   const [modalAberto, setModalAberto] = useState(false);
+  const [categoria, setCategoria] = useState("Geral");
 
   // Estados do formulário
   const [descricao, setDescricao] = useState("");
@@ -64,8 +57,11 @@ function App() {
   const [tipo, setTipo] = useState("Saída");
 
   const buscarTransacoes = async () => {
+    if (!usuario?.email) return;
     try {
-      const response = await fetch("http://localhost:5010/api/transacoes");
+      const response = await fetch(
+        `http://localhost:5010/api/transacoes/${usuario.email}`,
+      );
       if (!response.ok) throw new Error("Erro na requisição");
       const dados = await response.json();
       setTransacoes(dados);
@@ -75,8 +71,12 @@ function App() {
   };
 
   useEffect(() => {
-    buscarTransacoes();
-  }, []);
+    if (usuario) {
+      buscarTransacoes();
+    } else {
+      setTransacoes([]); // Se deslogar, apaga a lista da tela!
+    }
+  }, [usuario]);
 
   const salvarTransacao = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -85,9 +85,9 @@ function App() {
       descricao,
       valor: parseFloat(valor),
       tipo,
+      categoria,
       data: new Date().toISOString(),
-      usuarioEmail: usuario?.email || "anonimo@teste.com",
-      categoria: "Geral",
+      usuarioEmail: usuario?.email,
     };
 
     try {
@@ -102,9 +102,40 @@ function App() {
         setDescricao("");
         setValor("");
         await buscarTransacoes(); // Atualiza a lista
+      } else {
+        const erroTexto = await response.text();
+        alert(`Erro do Servidor (500): ${erroTexto}`);
       }
     } catch (error) {
       console.error("Erro ao salvar:", error);
+    }
+  };
+
+  const limparHistorico = async () => {
+    if (!usuario?.email) return;
+
+    const confirmou = window.confirm(
+      "Tem certeza que deseja apagar todo o seu histórico financeiro?",
+    );
+    if (!confirmou) return;
+
+    try {
+      const response = await fetch(
+        `http://localhost:5010/api/transacoes/limpar/${usuario.email}`,
+        {
+          method: "DELETE",
+        },
+      );
+
+      if (response.ok) {
+        setTransacoes([]);
+        alert("HIstórico limpo com sucesso!");
+      } else {
+        alert("Erro ao limpar o histórico no servidor.");
+      }
+    } catch (error) {
+      alert("Erro de conexão: " + error);
+      console.error("Erro na requisição de limpeza:", error);
     }
   };
 
@@ -124,6 +155,20 @@ function App() {
     .reduce((acc, curr) => acc + curr.valor, 0);
 
   const saldoTotal = totalEntradas - totalSaidas;
+
+  const dadosGrafico = transacoes
+    .filter((t) => t.tipo === "Saída")
+    .reduce((acc: DadoGrafico[], curr) => {
+      const categoriaExistente = acc.find(
+        (item) => item.name === curr.categoria,
+      );
+      if (categoriaExistente) {
+        categoriaExistente.valor += curr.valor;
+      } else {
+        acc.push({ name: curr.categoria, valor: curr.valor });
+      }
+      return acc;
+    }, []);
 
   return (
     <div className="min-h-screen bg-[#0f172a] text-slate-200 flex flex-col md:flex-row font-sans">
@@ -222,16 +267,29 @@ function App() {
         </section>
 
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-10">
-          <section className="bg-[#1e293b]/40 border border-slate-800 p-8 rounded-[2rem]">
+          <section className="bg-[#1e293b]/40 border border-slate-800 p-8 rounded-4xl">
             <h3 className="text-xl font-bold mb-8 text-white">Fluxo Semanal</h3>
             <div className="h-64 w-full">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={data}>
+                <BarChart
+                  data={
+                    dadosGrafico.length > 0
+                      ? dadosGrafico
+                      : [{ name: "Sem dados", valor: 0 }]
+                  }
+                >
+                  <defs>
+                    {/* Criando um gradiente para a barra ficar moderna */}
+                    <linearGradient id="colorValor" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#6366f1" stopOpacity={0.8} />
+                      <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
                   <XAxis
                     dataKey="name"
                     axisLine={false}
                     tickLine={false}
-                    tick={{ fill: "#94a3b8" }}
+                    tick={{ fill: "#94a3b8", fontSize: 12 }}
                   />
                   <Tooltip
                     cursor={{ fill: "#334155" }}
@@ -242,24 +300,32 @@ function App() {
                       color: "#fff",
                     }}
                   />
-                  <Bar dataKey="valor" radius={[6, 6, 0, 0]}>
-                    {data.map((_, index) => (
-                      <Cell
-                        key={`cell-${index}`}
-                        fill={index === 4 ? "#6366f1" : "#334155"}
-                      />
-                    ))}
-                  </Bar>
+
+                  <Bar
+                    dataKey="valor"
+                    fill="url(#colorValor)"
+                    radius={[10, 10, 0, 0]}
+                    barSize={40}
+                  />
                 </BarChart>
               </ResponsiveContainer>
             </div>
           </section>
 
-          <section className="bg-[#1e293b]/40 border border-slate-800 p-8 rounded-[2rem]">
+          <section className="bg-[#1e293b]/40 border border-slate-800 p-8 rounded-4xl">
             <div className="flex justify-between items-center mb-8">
               <h3 className="text-xl font-bold text-white">
                 Atividade Recente
               </h3>
+              {transacoes.length > 0 && (
+                <button
+                  onClick={limparHistorico}
+                  className="text-slate-500 hover:text-rose-400 p-2 rounded-xl hover:bg-rose-500/10 transition-all flex items-center gap-2 text-sm font-semibold"
+                >
+                  <Trash2 size={18} />
+                  <span>Limpar Tudo</span>
+                </button>
+              )}
             </div>
             <div className="space-y-6">
               {transacoes.length > 0 ? (
@@ -273,14 +339,31 @@ function App() {
                   />
                 ))
               ) : (
-                <div className="text-center py-10 border-2 border-dashed border-slate-800 rounded-2xl">
-                  <p className="text-slate-500 text-sm">
-                    Nenhuma movimentação encontrada...
+                <div className="text-center py-10 opacity-50">
+                  <p>Nenhuma transação real encontrada para {usuario?.name}.</p>
+                  <p className="text-xs">
+                    Tente adicionar um gasto no botão acima!
                   </p>
                 </div>
               )}
             </div>
           </section>
+        </div>
+        <div>
+          <label className="block text-xs font-bold text-slate-500 uppercase mb-2">
+            Categoria
+          </label>
+          <select
+            value={categoria}
+            onChange={(e) => setCategoria(e.target.value)}
+            className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white focus:border-indigo-500 outline-none"
+          >
+            <option value="Alimentação">Alimentação</option>
+            <option value="Lazer">Lazer</option>
+            <option value="Transporte">Transporte</option>
+            <option value="Saúde">Saúde</option>
+            <option value="Geral">Geral</option>
+          </select>
         </div>
       </main>
 
