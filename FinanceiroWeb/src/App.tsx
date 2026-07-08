@@ -2,13 +2,12 @@ import { GoogleLogin } from "@react-oauth/google";
 import { jwtDecode } from "jwt-decode";
 import { useState, useEffect } from "react";
 
+import Extrato from "./components/Extrato";
+import Metas from "./components/Metas";
+import Configuracoes from "./components/Configuracoes";
 import {
   Wallet,
   Trash2,
-  TrendingUp,
-  TrendingDown,
-  Plus,
-  LogOut,
   ArrowUpCircle,
   ArrowDownCircle,
   PlusCircle,
@@ -46,10 +45,24 @@ interface DadoGrafico {
 }
 
 function App() {
+  const [darkMode, setDarkMode] = useState<boolean>(() => {
+    const salvo = localStorage.getItem("gabrielpay_darkmode");
+    return salvo !== null ? salvo === "true" : true;
+  });
+
+  const [alertasGasto, setAlertasGasto] = useState<boolean>(() => {
+    const salvo = localStorage.getItem("gabrielpay_alertas");
+    return salvo !== null ? salvo === "true" : true;
+  });
   const [usuario, setUsuario] = useState<GoogleUser | null>(null);
   const [transacoes, setTransacoes] = useState<Transacao[]>([]);
   const [modalAberto, setModalAberto] = useState(false);
   const [categoria, setCategoria] = useState("Geral");
+
+  // Estado de Navegação Corrigido
+  const [telaAtual, setTelaAtual] = useState<
+    "dashboard" | "extrato" | "metas" | "configuracoes"
+  >("dashboard");
 
   // Estados do formulário
   const [descricao, setDescricao] = useState("");
@@ -74,7 +87,7 @@ function App() {
     if (usuario) {
       buscarTransacoes();
     } else {
-      setTransacoes([]); // Se deslogar, apaga a lista da tela!
+      setTransacoes([]);
     }
   }, [usuario]);
 
@@ -93,7 +106,7 @@ function App() {
     try {
       const response = await fetch("http://localhost:5010/api/transacoes", {
         method: "POST",
-        headers: { "Content-Type": "application/json" }, // Corrigido aqui!
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(novaTransacao),
       });
 
@@ -101,7 +114,8 @@ function App() {
         setModalAberto(false);
         setDescricao("");
         setValor("");
-        await buscarTransacoes(); // Atualiza a lista
+        setCategoria("Geral");
+        await buscarTransacoes();
       } else {
         const erroTexto = await response.text();
         alert(`Erro do Servidor (500): ${erroTexto}`);
@@ -129,7 +143,7 @@ function App() {
 
       if (response.ok) {
         setTransacoes([]);
-        alert("HIstórico limpo com sucesso!");
+        alert("Histórico limpo com sucesso!");
       } else {
         alert("Erro ao limpar o histórico no servidor.");
       }
@@ -150,8 +164,9 @@ function App() {
     .filter((t) => t.tipo === "Entrada")
     .reduce((acc, curr) => acc + curr.valor, 0);
 
+  // Corrigido: adicionado o alias 't.tipo' correto
   const totalSaidas = transacoes
-    .filter((t) => tipo === "Saída")
+    .filter((t) => t.tipo === "Saída")
     .reduce((acc, curr) => acc + curr.valor, 0);
 
   const saldoTotal = totalEntradas - totalSaidas;
@@ -159,39 +174,85 @@ function App() {
   const dadosGrafico = transacoes
     .filter((t) => t.tipo === "Saída")
     .reduce((acc: DadoGrafico[], curr) => {
+      const nomeCategoria = curr.categoria || "Geral";
       const categoriaExistente = acc.find(
-        (item) => item.name === curr.categoria,
+        (item) => item.name === nomeCategoria,
       );
       if (categoriaExistente) {
         categoriaExistente.valor += curr.valor;
       } else {
-        acc.push({ name: curr.categoria, valor: curr.valor });
+        acc.push({ name: nomeCategoria, valor: curr.valor });
       }
       return acc;
     }, []);
 
   return (
-    <div className="min-h-screen bg-[#0f172a] text-slate-200 flex flex-col md:flex-row font-sans">
-      <aside className="w-full md:w-72 bg-[#1e293b]/50 backdrop-blur-xl border-r border-slate-800 p-8 flex flex-col justify-between">
+    <div
+      className={`min-h-screen flex flex-col md:flex-row font-sans transition-all duration-300 ${
+        darkMode ? "bg-[#0f172a] text-slate-200" : "bg-black text-white"
+      }`}
+    >
+      <aside
+        className={`w-full md:w-72 border-r p-8 flex flex-col justify-between transition-all ${
+          darkMode
+            ? "bg-[#1e293b]/50 border-slate-800"
+            : "bg-[#121214] border-[#29292e]"
+        }`}
+      >
         <div>
           <div className="flex items-center gap-3 mb-12">
             <div className="bg-indigo-500 p-2 rounded-lg shadow-lg shadow-indigo-500/20">
               <Wallet className="text-white" size={24} />
             </div>
-            <h1 className="text-xl font-black tracking-tight text-white uppercase">
-              Gabriel<span className="text-indigo-400">Pay</span>
+            <h1
+              className={`text-xl font-black tracking-tight uppercase transition-colors ${
+                darkMode ? "text-white" : "text-slate-900"
+              }`}
+            >
+              Controle
+              <span className="text-indigo-500"> Financeiro </span>
             </h1>
           </div>
 
+          {/* Eventos de clique adicionados diretamente aos itens do menu */}
           <nav className="space-y-2">
-            <NavItem
-              icon={<LayoutDashboard size={20} />}
-              label="Dashboard"
-              active
-            />
-            <NavItem icon={<History size={20} />} label="Extrato" />
-            <NavItem icon={<PiggyBank size={20} />} label="Metas" />
-            <NavItem icon={<Settings size={20} />} label="Configurações" />
+            <button
+              onClick={() => setTelaAtual("dashboard")}
+              className="w-full"
+            >
+              <NavItem
+                icon={<LayoutDashboard size={20} />}
+                label="Dashboard"
+                active={telaAtual === "dashboard"}
+              />
+            </button>
+
+            <button onClick={() => setTelaAtual("extrato")} className="w-full">
+              <NavItem
+                icon={<History size={20} />}
+                label="Extrato"
+                active={telaAtual === "extrato"}
+              />
+            </button>
+
+            <button onClick={() => setTelaAtual("metas")} className="w-full">
+              <NavItem
+                icon={<PiggyBank size={20} />}
+                label="Metas"
+                active={telaAtual === "metas"}
+              />
+            </button>
+
+            <button
+              onClick={() => setTelaAtual("configuracoes")}
+              className="w-full"
+            >
+              <NavItem
+                icon={<Settings size={20} />}
+                label="Configurações"
+                active={telaAtual === "configuracoes"}
+              />
+            </button>
           </nav>
         </div>
 
@@ -229,10 +290,18 @@ function App() {
       <main className="flex-1 p-6 md:p-12 overflow-y-auto">
         <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-12">
           <div>
-            <h2 className="text-4xl font-extrabold text-white tracking-tight">
+            <h2
+              className={`text-4xl font-extrabold tracking-tight transition-colors ${
+                darkMode ? "text-white" : "text-slate-900"
+              }`}
+            >
               {usuario ? `Olá, ${usuario.given_name}!` : "Painel de Controle"}
             </h2>
-            <p className="text-slate-400 mt-1 font-medium">
+            <p
+              className={`mt-1 font-medium transition-colors ${
+                darkMode ? "text-slate-400" : "text-slate-500"
+              }`}
+            >
               Bem-vindo de volta ao seu centro financeiro.
             </p>
           </div>
@@ -244,130 +313,164 @@ function App() {
           </button>
         </header>
 
-        <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 mb-12">
-          <FinanceCard
-            title="Entradas"
-            value={`R$ ${totalEntradas.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`}
-            icon={<ArrowUpCircle className="text-emerald-400" />}
-            color="emerald"
-          />
-          <FinanceCard
-            title="Saídas"
-            value={`R$ ${totalSaidas.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`}
-            icon={<ArrowDownCircle className="text-rose-400" />}
-            color="rose"
-          />
-          <FinanceCard
-            title="Saldo em Conta"
-            value={`R$ ${saldoTotal.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`}
-            icon={<Wallet className="text-indigo-400" />}
-            color="indigo"
-            highlight
-          />
-        </section>
+        {/* 1. RENDERIZA APENAS A DASHBOARD */}
+        {telaAtual === "dashboard" && (
+          <>
+            <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 mb-12">
+              <FinanceCard
+                title="Entradas"
+                value={`R$ ${totalEntradas.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`}
+                icon={<ArrowUpCircle className="text-emerald-400" />}
+                color="emerald"
+              />
+              <FinanceCard
+                title="Saídas"
+                value={`R$ ${totalSaidas.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`}
+                icon={<ArrowDownCircle className="text-rose-400" />}
+                color="rose"
+              />
+              <FinanceCard
+                title="Saldo em Conta"
+                value={`R$ ${saldoTotal.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`}
+                icon={<Wallet className="text-indigo-400" />}
+                color="indigo"
+                highlight
+              />
+            </section>
 
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-10">
-          <section className="bg-[#1e293b]/40 border border-slate-800 p-8 rounded-4xl">
-            <h3 className="text-xl font-bold mb-8 text-white">Fluxo Semanal</h3>
-            <div className="h-64 w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart
-                  data={
-                    dadosGrafico.length > 0
-                      ? dadosGrafico
-                      : [{ name: "Sem dados", valor: 0 }]
-                  }
-                >
-                  <defs>
-                    {/* Criando um gradiente para a barra ficar moderna */}
-                    <linearGradient id="colorValor" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#6366f1" stopOpacity={0.8} />
-                      <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <XAxis
-                    dataKey="name"
-                    axisLine={false}
-                    tickLine={false}
-                    tick={{ fill: "#94a3b8", fontSize: 12 }}
-                  />
-                  <Tooltip
-                    cursor={{ fill: "#334155" }}
-                    contentStyle={{
-                      backgroundColor: "#1e293b",
-                      border: "none",
-                      borderRadius: "12px",
-                      color: "#fff",
-                    }}
-                  />
-
-                  <Bar
-                    dataKey="valor"
-                    fill="url(#colorValor)"
-                    radius={[10, 10, 0, 0]}
-                    barSize={40}
-                  />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </section>
-
-          <section className="bg-[#1e293b]/40 border border-slate-800 p-8 rounded-4xl">
-            <div className="flex justify-between items-center mb-8">
-              <h3 className="text-xl font-bold text-white">
-                Atividade Recente
-              </h3>
-              {transacoes.length > 0 && (
-                <button
-                  onClick={limparHistorico}
-                  className="text-slate-500 hover:text-rose-400 p-2 rounded-xl hover:bg-rose-500/10 transition-all flex items-center gap-2 text-sm font-semibold"
-                >
-                  <Trash2 size={18} />
-                  <span>Limpar Tudo</span>
-                </button>
-              )}
-            </div>
-            <div className="space-y-6">
-              {transacoes.length > 0 ? (
-                transacoes.map((t) => (
-                  <TransactionRow
-                    key={t.id}
-                    title={t.descricao}
-                    date={new Date(t.data).toLocaleDateString("pt-BR")}
-                    value={`${t.tipo === "Saída" ? "-" : "+"} R$ ${t.valor.toFixed(2)}`}
-                    type={t.tipo === "Saída" ? "out" : "in"}
-                  />
-                ))
-              ) : (
-                <div className="text-center py-10 opacity-50">
-                  <p>Nenhuma transação real encontrada para {usuario?.name}.</p>
-                  <p className="text-xs">
-                    Tente adicionar um gasto no botão acima!
-                  </p>
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-10">
+              <section
+                className={`border p-8 rounded-4xl transition-all ${
+                  darkMode
+                    ? "bg-[#1e293b]/40 border-slate-800"
+                    : "bg-[#121214] border-[#29292e]"
+                }`}
+              >
+                <h3 className="text-xl font-bold mb-8 text-white">
+                  Fluxo Semanal
+                </h3>
+                <div className="h-64 w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      data={
+                        dadosGrafico.length > 0
+                          ? dadosGrafico
+                          : [{ name: "Sem dados", valor: 0 }]
+                      }
+                    >
+                      <defs>
+                        <linearGradient
+                          id="colorValor"
+                          x1="0"
+                          y1="0"
+                          x2="0"
+                          y2="1"
+                        >
+                          <stop
+                            offset="5%"
+                            stopColor="#6366f1"
+                            stopOpacity={0.8}
+                          />
+                          <stop
+                            offset="95%"
+                            stopColor="#6366f1"
+                            stopOpacity={0}
+                          />
+                        </linearGradient>
+                      </defs>
+                      <XAxis
+                        dataKey="name"
+                        axisLine={false}
+                        tickLine={false}
+                        tick={{ fill: "#94a3b8", fontSize: 12 }}
+                      />
+                      <Tooltip
+                        cursor={{ fill: "#334155" }}
+                        contentStyle={{
+                          backgroundColor: "#1e293b",
+                          border: "none",
+                          borderRadius: "12px",
+                          color: "#fff",
+                        }}
+                      />
+                      <Bar
+                        dataKey="valor"
+                        fill="url(#colorValor)"
+                        radius={[10, 10, 0, 0]}
+                        barSize={40}
+                      />
+                    </BarChart>
+                  </ResponsiveContainer>
                 </div>
-              )}
+              </section>
+
+              <section
+                className={`border p-8 rounded-4xl transition-all ${
+                  darkMode
+                    ? "bg-[#1e293b]/40 border-slate-800"
+                    : "bg-[#121214] border-[#29292e]"
+                }`}
+              >
+                <div className="flex justify-between items-center mb-8">
+                  <h3 className="text-xl font-bold text-white">
+                    Atividade Recente
+                  </h3>
+                  {transacoes.length > 0 && (
+                    <button
+                      onClick={limparHistorico}
+                      className="text-slate-500 hover:text-rose-400 p-2 rounded-xl hover:bg-rose-500/10 transition-all flex items-center gap-2 text-sm font-semibold"
+                    >
+                      <Trash2 size={18} />
+                      <span>Limpar Tudo</span>
+                    </button>
+                  )}
+                </div>
+                <div className="space-y-6">
+                  {transacoes.length > 0 ? (
+                    transacoes.map((t) => (
+                      <TransactionRow
+                        key={t.id}
+                        title={t.descricao}
+                        date={new Date(t.data).toLocaleDateString("pt-BR")}
+                        value={`${t.tipo === "Saída" ? "-" : "+"} R$ ${t.valor.toFixed(2)}`}
+                        type={t.tipo === "Saída" ? "out" : "in"}
+                      />
+                    ))
+                  ) : (
+                    <div className="text-center py-10 opacity-50">
+                      <p>
+                        Nenhuma transação real encontrada para {usuario?.name}.
+                      </p>
+                      <p className="text-xs">
+                        Tente adicionar um gasto no botão acima!
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </section>
             </div>
-          </section>
-        </div>
-        <div>
-          <label className="block text-xs font-bold text-slate-500 uppercase mb-2">
-            Categoria
-          </label>
-          <select
-            value={categoria}
-            onChange={(e) => setCategoria(e.target.value)}
-            className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white focus:border-indigo-500 outline-none"
-          >
-            <option value="Alimentação">Alimentação</option>
-            <option value="Lazer">Lazer</option>
-            <option value="Transporte">Transporte</option>
-            <option value="Saúde">Saúde</option>
-            <option value="Geral">Geral</option>
-          </select>
-        </div>
+          </>
+        )}
+
+        {/* 2. RENDERIZA APENAS O EXTRATO */}
+        {telaAtual === "extrato" && <Extrato transacoes={transacoes} />}
+
+        {/* 3. RENDERIZA APENAS AS METAS */}
+        {telaAtual === "metas" && <Metas />}
+
+        {/* 4. RENDERIZA APENAS AS CONFIGURAÇÕES (Deixei pronto!) */}
+        {telaAtual === "configuracoes" && (
+          <Configuracoes
+            usuario={usuario}
+            darkMode={darkMode}
+            setDarkMode={setDarkMode}
+            alertasGasto={alertasGasto}
+            setAlertasGasto={setAlertasGasto}
+          />
+        )}
       </main>
 
-      {/* MODAL (Agora fora dos componentes menores) */}
+      {/* MODAL */}
       {modalAberto && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-[#1e293b] border border-slate-700 p-8 rounded-[2.5rem] w-full max-w-md shadow-2xl">
@@ -388,6 +491,7 @@ function App() {
                   placeholder="Ex: Almoço em Niterói"
                 />
               </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-bold text-slate-500 uppercase mb-2">
@@ -416,6 +520,24 @@ function App() {
                   </select>
                 </div>
               </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase mb-2">
+                  Categoria
+                </label>
+                <select
+                  value={categoria}
+                  onChange={(e) => setCategoria(e.target.value)}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white focus:border-indigo-500 outline-none"
+                >
+                  <option value="Alimentação">Alimentação</option>
+                  <option value="Lazer">Lazer</option>
+                  <option value="Transporte">Transporte</option>
+                  <option value="Saúde">Saúde</option>
+                  <option value="Geral">Geral</option>
+                </select>
+              </div>
+
               <div className="flex gap-3 pt-4">
                 <button
                   type="button"
@@ -439,15 +561,22 @@ function App() {
   );
 }
 
-// COMPONENTES AUXILIARES
+// COMPONENTES AUXILIARES CORRIGIDOS
 function NavItem({ icon, label, active = false }: NavItemProps) {
+  const isDark = localStorage.getItem("gabrielpay_darkmode") !== "false";
+
   return (
-    <a
-      href="#"
-      className={`flex items-center gap-4 p-4 rounded-2xl transition-all font-semibold ${active ? "bg-indigo-500 text-white shadow-lg shadow-indigo-500/20" : "text-slate-400 hover:bg-slate-800 hover:text-white"}`}
+    <div
+      className={`flex items-center gap-4 p-4 rounded-2xl transition-all font-bold cursor-pointer ${
+        active
+          ? "bg-indigo-600 text-white shadow-lg shadow-indigo-600/30"
+          : isDark
+            ? "text-slate-400 hover:bg-slate-800 hover:text-white"
+            : "text-slate-300 hover:bg-[#202024] hover:text-white"
+      }`}
     >
       {icon} <span>{label}</span>
-    </a>
+    </div>
   );
 }
 
@@ -457,23 +586,43 @@ function FinanceCard({
   icon,
   highlight = false,
 }: FinanceCardProps) {
+  const isDark = localStorage.getItem("gabrielpay_darkmode") !== "false";
+
   return (
     <article
-      className={`p-8 rounded-[2rem] border transition-all duration-300 cursor-pointer backdrop-blur-md hover:scale-[1.03] ${highlight ? "bg-indigo-600/80 border-indigo-400 text-white" : "bg-[#1e293b]/40 border-slate-800 text-slate-200"}`}
+      className={`p-8 rounded-[2rem] border transition-all duration-300 cursor-pointer hover:scale-[1.03] ${
+        highlight
+          ? "bg-indigo-600 text-white border-indigo-400 shadow-xl shadow-indigo-600/20"
+          : isDark
+            ? "bg-[#1e293b]/40 border-slate-800 text-slate-200"
+            : "bg-[#121214] border-[#29292e] text-white shadow-md"
+      }`}
     >
       <div className="flex justify-between items-start mb-6">
         <p
-          className={`font-bold uppercase tracking-wider text-[10px] ${highlight ? "text-indigo-200" : "text-slate-500"}`}
+          className={`font-black uppercase tracking-wider text-[11px] ${
+            highlight
+              ? "text-indigo-200"
+              : isDark
+                ? "text-slate-500"
+                : "text-slate-400"
+          }`}
         >
           {title}
         </p>
         <div
-          className={`p-3 rounded-2xl ${highlight ? "bg-white/20" : "bg-slate-800/50"}`}
+          className={`p-3 rounded-2xl ${
+            highlight
+              ? "bg-white/20"
+              : isDark
+                ? "bg-slate-800/50"
+                : "bg-[#202024]"
+          }`}
         >
           {icon}
         </div>
       </div>
-      <p className="text-3xl font-black tracking-tight">{value}</p>
+      <p className="text-3xl font-black tracking-tight text-white">{value}</p>
     </article>
   );
 }
@@ -488,9 +637,7 @@ function TransactionRow({ title, date, value, type }: TransactionProps) {
           {type === "in" ? "+" : "-"}
         </div>
         <div>
-          <p className="font-bold text-white group-hover:text-indigo-400 transition-colors">
-            {title}
-          </p>
+          <p className="font-bold text-white">{title}</p>
           <p className="text-sm text-slate-500">{date}</p>
         </div>
       </div>

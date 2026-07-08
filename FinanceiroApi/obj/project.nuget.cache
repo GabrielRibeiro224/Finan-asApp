@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "cj1XnxcyoNs=",
+  "dgSpecHash": "srxHVYt2/0s=",
   "success": true,
-  "projectFilePath": "C:\\Users\\gabri\\ControleFinanceiro\\financeiroapi\\FinanceiroApi.csproj",
+  "projectFilePath": "C:\\Users\\gabri\\ControleFinanceiro\\FinanceiroApi\\FinanceiroApi.csproj",
   "expectedPackageFiles": [
     "C:\\Users\\gabri\\.nuget\\packages\\humanizer.core\\2.14.1\\humanizer.core.2.14.1.nupkg.sha512",
     "C:\\Users\\gabri\\.nuget\\packages\\microsoft.aspnetcore.openapi\\9.0.10\\microsoft.aspnetcore.openapi.9.0.10.nupkg.sha512",
